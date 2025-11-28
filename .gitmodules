@@ -1,0 +1,3 @@
+[submodule "submodules/HIPRT"]
+	path = submodules/HIPRT
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/HIPRT
