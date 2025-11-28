@@ -1,8 +1,6 @@
 # rt_framework
 
-- git clone https://github.com/humanx98/rt_framework.git
-- cd rt_framework
-- 
+- git clone --recurse-submodules https://github.com/humanx98/rt_framework.git
 - bash scripts/build_hiprt.sh
 
 # Build with Ninja
