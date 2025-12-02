@@ -146,18 +146,18 @@ static void loadMotionBlur(rtf::Scene& scene, rtf::Camera& camera) {
     }
 }
 
-static void render(std::unique_ptr<rtf::Renderer> renderer, const std::filesystem::path& png) {
+static void render(rtf::Renderer& renderer, const std::filesystem::path& png) {
     const int deviceIdnex = 0;
     glm::uvec2 resolution(1920, 1080);
     rtf::Camera camera;
     rtf::Scene scene;
     loadMotionBlur(scene, camera);
 
-    renderer->init(deviceIdnex, resolution, scene);
-    renderer->render(camera);
+    renderer.init(deviceIdnex, resolution, scene);
+    renderer.render(camera);
 
     std::vector<glm::vec4> rgba32f;
-    renderer->getPixels(rgba32f);
+    renderer.getPixels(rgba32f);
     if (!rgba32f.empty()) {
         std::vector<glm::u8vec4> rgba8;
         rgba8.reserve(rgba32f.size());
@@ -180,13 +180,19 @@ static void render(std::unique_ptr<rtf::Renderer> renderer, const std::filesyste
 
 int main() {
 #ifdef USE_HIP
-    std::println("Rendering using: hiprt");
-    render(std::make_unique<rtf::HiprtRenderer>(), "hiprt_result.png");
+    {
+        std::println("Rendering using: hiprt");
+        rtf::HiprtRenderer renderer;
+        render(renderer, "hiprt_result.png");
+    }
 #endif
 
 #ifdef USE_CUDA
-    std::println("Rendering using optix");
-    render(std::make_unique<rtf::OptixRenderer>(), "optix_result.png");
+    {
+        std::println("Rendering using optix");
+        rtf::OptixRenderer renderer;
+        render(renderer, "optix_result.png");
+    }
 #endif
     std::println("End of the program.");
     return 0;

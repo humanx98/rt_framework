@@ -4,7 +4,17 @@
 #include <glm/glm.hpp>
 
 namespace rtf {
-    struct TriangleMesh {
+    class OnlyMovable {
+        OnlyMovable(const OnlyMovable&) = delete;
+        OnlyMovable& operator=(const OnlyMovable&) = delete;
+    protected:
+        ~OnlyMovable() = default;
+        OnlyMovable() = default;
+        OnlyMovable(OnlyMovable&&) noexcept = default;
+        OnlyMovable& operator=(OnlyMovable&&) noexcept = default;
+    };
+
+    struct TriangleMesh : public OnlyMovable {
         std::vector<glm::vec3> vertices;
         std::vector<glm::uvec3> triangles;
 
@@ -12,11 +22,6 @@ namespace rtf {
             : vertices(std::move(vertices))
             , triangles(std::move(triangles)) {
         }
-
-        TriangleMesh(TriangleMesh&&) noexcept = default;
-        TriangleMesh& operator=(TriangleMesh&&) noexcept = default;
-        TriangleMesh(const TriangleMesh&) = delete;
-        TriangleMesh& operator=(const TriangleMesh&) = delete;
     };
 
     struct Transform {
@@ -24,7 +29,7 @@ namespace rtf {
         float time;
     };
 
-    struct Instance {
+    struct Instance : public OnlyMovable {
         glm::uint triangleMeshIndex;
         std::vector<Transform> transforms;
 
@@ -37,22 +42,11 @@ namespace rtf {
             : triangleMeshIndex(triangleMeshIndex)
             , transforms(std::move(transforms)){
         }
-
-        Instance(Instance&&) noexcept = default;
-        Instance& operator=(Instance&&) noexcept = default;
-        Instance(const Instance&) = delete;
-        Instance& operator=(const Instance&) = delete;
     };
 
-    struct Scene {
+    struct Scene : public OnlyMovable {
         std::vector<TriangleMesh> meshes;
         std::vector<Instance> instances;
-
-        Scene() {}
-        Scene(Scene&&) noexcept = default;
-        Scene& operator=(Scene&&) noexcept = default;
-        Scene(const Scene&) = delete;
-        Scene& operator=(const Scene&) = delete;
     };
 
     struct Camera {
@@ -62,12 +56,8 @@ namespace rtf {
         float vfov;
     };
 
-    class Renderer {
-    public:
-        Renderer() {}
+    struct Renderer : public OnlyMovable {
         virtual ~Renderer() {}
-        Renderer(const Renderer&) = delete;
-        Renderer& operator=(const Renderer&) = delete;
         virtual void init(int deviceIndex, glm::uvec2 resolution, const Scene& scene) = 0;
         virtual void render(const Camera& camera) = 0;
         virtual void getPixels(std::vector<glm::vec4>& pixels) = 0;
