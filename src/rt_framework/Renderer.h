@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <glm/glm.hpp>
+#include <filesystem>
 
 namespace rtf {
     class OnlyMovable {
@@ -14,7 +15,7 @@ namespace rtf {
         OnlyMovable& operator=(OnlyMovable&&) noexcept = default;
     };
 
-    struct TriangleMesh : public OnlyMovable {
+    struct TriangleMesh {
         std::vector<glm::vec3> vertices;
         std::vector<glm::uvec3> triangles;
 
@@ -29,7 +30,7 @@ namespace rtf {
         float time;
     };
 
-    struct Instance : public OnlyMovable {
+    struct Instance {
         glm::uint triangleMeshIndex;
         std::vector<Transform> transforms;
 
@@ -44,7 +45,7 @@ namespace rtf {
         }
     };
 
-    struct Scene : public OnlyMovable {
+    struct Scene {
         std::vector<TriangleMesh> meshes;
         std::vector<Instance> instances;
     };
@@ -58,8 +59,21 @@ namespace rtf {
 
     struct Renderer : public OnlyMovable {
         virtual ~Renderer() {}
-        virtual void init(int deviceIndex, glm::uvec2 resolution, const Scene& scene) = 0;
-        virtual void render(const Camera& camera) = 0;
-        virtual void getPixels(std::vector<glm::vec4>& pixels) = 0;
+
+        // virtual void addMesh(const TriangleMesh &mesh) = 0;
+
+        // virtual void setInstanceTransform(glm::mat4 &transform) = 0;
+        // virtual void setMotionTransforms(std::vector<glm::mat4> &transforms) = 0;
+        // virtual void setCamera(const Camera &camera) = 0;
+        // virtual void setScene(const Scene &scene) = 0;
+        // virtual void renderScene(const Scene &scene, const Camera &camera,
+        //                 const std::filesystem::path &outputPath) = 0;
+        virtual bool initialize(int deviceIndex) = 0;
+        virtual bool prepareRenderingPipeline() = 0;
+
+        // virtual void render(const Camera& camera) = 0;
+        // virtual void getPixels(std::vector<glm::vec4>& pixels) = 0;
     };
 }
+
+

@@ -1,25 +1,39 @@
 set(USE_HIP TRUE)
-set(USE_CUDA TRUE)
+set(USE_CUDA FALSE)
 set(DEPENDENCIES)
 set(DEFINITIONS)
+set(TARGETS)
+set(ADDITIONAL_INCLUDE_DIRS)
 
 set(HEADERS
     Renderer.h
+    RenderSession.h
+    RenderSessionTypes.h
+    RendererFactories.h
+    CommandLine.h
+    MeshType.h
+    Utils.h
 )
 set(SOURCES
     main.cpp
+    RenderSession.cpp
+    CommandLine.cpp
+    Utils.cpp
 )
 
 if(NOT DEFINED ROCM_PATH)
     set(ROCM_PATH "$ENV{HIP_PATH}" CACHE STRING "Default ROCM installation directory.")
     list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH})
+else()
+    list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH})
 endif()
 
 find_package(hip REQUIRED)
+message(STATUS "Found HIP in ${HIP_HIPCC_EXECUTABLE}")
 if (HIP_HIPCC_EXECUTABLE)
     string(REGEX MATCH "([0-9]+\\.[0-9]+)" HIP_MAJOR_MINOR_VERSION ${hip_VERSION})
     find_package(HIPRT REQUIRED)
-
+    message(STATUS "Found HIPRT version ${HIPRT_VERSION} in ${HIPRT_LIBRARY_DIR}")
     add_subdirectory(hip/device)
 
     list(APPEND HEADERS
@@ -30,6 +44,7 @@ if (HIP_HIPCC_EXECUTABLE)
 
     list(APPEND SOURCES
         hip/HiprtRenderer.cpp
+        hip/HiprtRendererFactory.cpp
     )
 
     list(APPEND TARGETS hip::host HIPRT::HIPRT)
@@ -41,19 +56,52 @@ else()
 endif()
 
 # TODO: check if cuda_found
-if (TRUE)
-    message(WARNING "TODO: find cuda, optix and link with them")
-    list(APPEND HEADERS
-        cuda/OptixRenderer.h
+find_package(CUDAToolkit)
+if (CUDAToolkit_FOUND)
+    message(STATUS "Found CUDA Toolkit in ${CUDAToolkit_BIN_DIR}")
+    message(STATUS "CUDA Toolkit version: ${OPTIX_INSTALL_DIR}")
+    if (NOT OPTIX_INSTALL_DIR)
+        if (DEFINED ENV{OPTIX_INSTALL_DIR})
+            set(OPTIX_INSTALL_DIR "$ENV{OPTIX_INSTALL_DIR}" CACHE PATH "OptiX SDK root" FORCE)
+        elseif(DEFINED ENV{OPTIX_ROOT})
+            set(OPTIX_INSTALL_DIR "$ENV{OPTIX_ROOT}" CACHE PATH "OptiX SDK root" FORCE)
+        endif()
+    endif()
+
+    if (OPTIX_INSTALL_DIR)
+        set(_optix_hint "${OPTIX_INSTALL_DIR}/include")
+    endif()
+
+    find_path(OPTIX_INCLUDE_DIR
+        NAMES optix.h
+        HINTS include 
+        PATHS ${_optix_hint}
+        DOC "Directory containing optix.h"
     )
-    list(APPEND SOURCES
-        cuda/OptixRenderer.cpp
-    )
-    # list(APPEND TARGETS hip_device_modules)
-    list(APPEND DEFINITIONS USE_CUDA)
+
+    if (OPTIX_INCLUDE_DIR)
+        set(OPTIX_INCLUDE_DIR "${OPTIX_INCLUDE_DIR}" CACHE PATH "OptiX include directory")
+        add_subdirectory(cuda/device)
+
+        list(APPEND HEADERS
+            cuda/OptixRenderer.h
+            cuda/OptixLaunchParams.h
+        )
+        list(APPEND SOURCES
+            cuda/OptixRenderer.cpp
+            cuda/OptixRendererFactory.cpp
+        )
+
+        list(APPEND TARGETS CUDA::cuda_driver CUDA::cudart)
+        list(APPEND DEPENDENCIES optix_device_ptx)
+        list(APPEND DEFINITIONS USE_CUDA)
+        list(APPEND ADDITIONAL_INCLUDE_DIRS ${OPTIX_INCLUDE_DIR})
+        set(USE_CUDA TRUE)
+    else()
+        message(WARNING "OptiX headers not found. CUDA renderer is disabled")
+    endif()
 else()
-    message(WARNING "Couldn't find nvcc. CUDA is disabled")
-    set(USE_CUDA FALSE)
+    message(WARNING "CUDAToolkit not found. CUDA renderer is disabled")
 endif()
 
 FetchContent_Declare(
@@ -95,13 +143,22 @@ add_custom_target(
     COMMENT "Copying meshes to ${CMAKE_CURRENT_BINARY_DIR}"
 )
 
-add_executable(rt_framework ${HEADERS} ${SOURCES})
-add_dependencies(rt_framework ${DEPENDENCIES} copy_meshes)
-target_compile_definitions(rt_framework PRIVATE ${DEFINITIONS})
-target_link_libraries(rt_framework PRIVATE ${TARGETS} glm::glm assimp::assimp)
-target_include_directories(rt_framework PRIVATE ${stb_SOURCE_DIR})
-
-add_custom_command(TARGET rt_framework POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:rt_framework> $<TARGET_RUNTIME_DLLS:rt_framework>
-    COMMAND_EXPAND_LISTS
-)
+if (USE_HIP OR USE_CUDA )
+    message(STATUS "Building with HIP support: ${USE_HIP} CUDA support: ${USE_CUDA}")
+    
+    add_executable(rt_framework ${HEADERS} ${SOURCES})
+    add_dependencies(rt_framework ${DEPENDENCIES} copy_meshes)
+    if (USE_HIP)
+        target_compile_definitions(rt_framework PRIVATE USE_HIP)
+        target_compile_definitions(rt_framework PRIVATE __AMD_PLATFORM_HIP__)
+    endif()
+    if (USE_CUDA)
+        target_compile_definitions(rt_framework PRIVATE USE_CUDA)
+    endif()
+    target_link_libraries(rt_framework PRIVATE ${TARGETS} glm::glm assimp::assimp)
+    target_include_directories(rt_framework PRIVATE ${stb_SOURCE_DIR} ${ADDITIONAL_INCLUDE_DIRS})
+    add_custom_command(TARGET rt_framework POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:rt_framework> $<TARGET_RUNTIME_DLLS:rt_framework>
+        COMMAND_EXPAND_LISTS
+    )
+endif()

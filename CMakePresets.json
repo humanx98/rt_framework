@@ -1,0 +1,68 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 21,
+        "patch": 0
+    },
+
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,        
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "HIP_ARCH": "gfx1030",
+                "ROCM_PATH": "C:\\opt\\rocm\\6.4",
+                "OPTIX_INSTALL_DIR": "C:\\ProgramData\\NVIDIA Corporation\\OptiX SDK 8.0.0"
+            }
+        },
+        {
+            "name": "windows-msvc",
+            "hidden": true,
+            "inherits": [ "base" ],
+            "generator": "Visual Studio 17 2022"
+        },
+        {
+            "name": "windows-msvc-debug",
+            "inherits": [ "windows-msvc" ],
+            "description": "Configure for Windows using MSVC in Debug mode",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "windows-msvc-release",
+            "inherits": [ "windows-msvc" ],
+            "description": "Configure for Windows using MSVC in Release mode",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "debug",
+            "hidden": true,
+            "configuration": "Debug"
+        },
+        {
+            "name": "release",
+            "hidden": true,
+            "configuration": "Release"
+        },
+        {
+            "name": "windows-msvc-debug",
+            "inherits": [ "debug" ],
+            "configurePreset": "windows-msvc-debug"
+        },
+        {
+            "name": "windows-msvc-release",
+            "inherits": [ "release" ],
+            "configurePreset": "windows-msvc-release"
+        }
+
+
+    ]
+}
