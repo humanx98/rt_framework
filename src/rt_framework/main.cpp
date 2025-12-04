@@ -27,101 +27,63 @@
 // #endif
 // #include <numbers>
 
-
-
 #include "AssetsLoader.h"
 #include "CommandLine.h"
 #include "RenderSession.h"
 
-
-
-
-
-int main(int argc, const char* argv[]) {
-    const rtf::CliParseResult cli = rtf::ParseCommandLine(argc, argv);
-    if (cli.mode == rtf::CliRunMode::ExitSuccess) {
-        return EXIT_SUCCESS;
-    }
-    if (cli.mode == rtf::CliRunMode::ExitFailure) {
-        return EXIT_FAILURE;
-    }
-    const rtf::CommandLineOptions& options = cli.options;
-
-   
-
-
-    // Create mesh and camera
-    rtf::Scene scene;
-    rtf::Camera camera;
-
-    if (!LoadMesh(options.meshType, scene)) {
-        std::println("Failed to load requested mesh");
-        return EXIT_FAILURE;
-    }
-    SetupCameraFromMesh(scene, camera);
-    
-    // print camera parmeters:
-    std::println("Camera:");
-    std::println("  lookFrom: ({}, {}, {})", camera.lookFrom.x,
-                    camera.lookFrom.y, camera.lookFrom.z);
-    std::println("  lookAt:   ({}, {}, {})", camera.lookAt.x,
-                    camera.lookAt.y, camera.lookAt.z);
-    std::println("  up:       ({}, {}, {})", camera.up.x,
-                    camera.up.y, camera.up.z);
-    std::println("  vfov:     {}", camera.vfov);
-
-    rtf::RenderSessionOptions sessionOptions {
-        .backend = options.backend,
-        .enableMotionBlur = options.enableMotionBlur,
-        .outputPath = options.outputPath,
-        .scene = scene,
-        .camera = camera
-    };
-
-     std::unique_ptr<rtf::RenderSession> session;
-    try {
-        session = rtf::RenderSession::create();
-    } catch (const std::runtime_error& e) {
-        std::println("Failed to create RenderSession: {}", e.what());
-        return EXIT_FAILURE;
-    }
-
-    session->initialize(sessionOptions);
-    session->prepareRenderingPipeline();
-    // session->setScene(scene);
-    // session->setCamera(camera);
-
-
-
-
-
-
-
-
-
+int main(int argc, const char *argv[]) {
+  const rtf::CliParseResult cli = rtf::ParseCommandLine(argc, argv);
+  if (cli.mode == rtf::CliRunMode::ExitSuccess) {
     return EXIT_SUCCESS;
+  }
+  if (cli.mode == rtf::CliRunMode::ExitFailure) {
+    return EXIT_FAILURE;
+  }
+  const rtf::CommandLineOptions &options = cli.options;
+
+  // Create mesh and camera
+  rtf::Scene scene;
+  rtf::Camera camera;
+
+  if (!LoadMesh(options.meshType, scene)) {
+    std::println("Failed to load requested mesh");
+    return EXIT_FAILURE;
+  }
+  SetupCameraFromMesh(scene, camera, 6.7f);
+
+  // print camera parmeters:
+  std::println("Camera:");
+  std::println("  lookFrom: ({}, {}, {})", camera.lookFrom.x, camera.lookFrom.y,
+               camera.lookFrom.z);
+  std::println("  lookAt:   ({}, {}, {})", camera.lookAt.x, camera.lookAt.y,
+               camera.lookAt.z);
+  std::println("  up:       ({}, {}, {})", camera.up.x, camera.up.y,
+               camera.up.z);
+  std::println("  vfov:     {}", camera.vfov);
+
+  rtf::RenderSessionOptions sessionOptions{.backend = options.backend,
+                                           .enableMotionBlur =
+                                               options.enableMotionBlur,
+                                           .outputPath = options.outputPath,
+                                           .scene = scene,
+                                           .camera = camera};
+
+  std::unique_ptr<rtf::RenderSession> session;
+  try {
+    session = rtf::RenderSession::create();
+  } catch (const std::runtime_error &e) {
+    std::println("Failed to create RenderSession: {}", e.what());
+    return EXIT_FAILURE;
+  }
+
+  session->initialize(sessionOptions);
+  session->prepareRenderingPipeline();
+  session->renderFrame();
+ 
+  std::vector<glm::vec4> frameData;
+  session->getFrameData(frameData);
+
+
+  rtf::SaveImage(sessionOptions.outputPath, sessionOptions.resolution.x, sessionOptions.resolution.y, frameData);
+  return EXIT_SUCCESS;
 }
-
-
-
-
-
-// #ifdef USE_HIP
-//     {
-//         std::println("Rendering using: hiprt");
-//         std::println("CWD: {}", std::filesystem::current_path().string());
-//         rtf::HiprtRenderer renderer;
-//         render(renderer, "hiprt_result.png");
-//     }
-// #endif
-
-// #ifdef USE_CUDA
-//     {
-//         std::println("Rendering using optix");
-//         rtf::OptixRenderer renderer;
-//         render(renderer, "optix_result.png");
-//     }
-// #endif
-//     std::println("End of the program.");
-//     return 0;
-//}

@@ -8,7 +8,8 @@ std::unique_ptr<RenderSession> RenderSession::create() {
   auto session = std::make_unique<RenderSession>();
   return session;
 }
-bool RenderSession::createRenderer(RenderBackend backend, RenderSession* session) {
+bool RenderSession::createRenderer(RenderBackend backend,
+                                   RenderSession *session) {
   switch (backend) {
   case RenderBackend::Hiprt:
 #if defined(USE_HIP)
@@ -36,6 +37,7 @@ bool RenderSession::initialize(const RenderSessionOptions &options) {
   m_outputPath = options.outputPath;
   m_scene = options.scene;
   m_camera = options.camera;
+  m_resolution = options.resolution;
   if (!createRenderer(options.backend, this)) {
     return false;
   }
@@ -44,9 +46,14 @@ bool RenderSession::initialize(const RenderSessionOptions &options) {
   return true;
 }
 
-bool RenderSession::prepareRenderingPipeline()
-{
-    return m_renderer_impl->prepareRenderingPipeline();
+bool RenderSession::prepareRenderingPipeline() {
+  return m_renderer_impl->prepareRenderingPipeline();
+}
+
+bool RenderSession::renderFrame() { return m_renderer_impl->renderFrame(); }
+
+void RenderSession::getFrameData(std::vector<glm::vec4> &frameData) {
+  m_renderer_impl->getFrameData(frameData);
 }
 
 } // namespace rtf

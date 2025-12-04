@@ -3,7 +3,6 @@
 #include <filesystem>
 #include <glm/glm.hpp>
 
-
 namespace rtf {
 enum class RenderBackend { None, Hiprt, Optix };
 
@@ -17,4 +16,4 @@ struct RenderSessionOptions {
   int deviceId{0};
 };
 
-}
+} // namespace rtf

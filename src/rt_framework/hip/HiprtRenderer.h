@@ -15,9 +15,9 @@ namespace rtf {
         ~HiprtRenderer();
         virtual bool initialize(int deviceIndex) override;
         virtual bool prepareRenderingPipeline() override;
-        // virtual void render(const Camera& camera) override;
-        // virtual void getPixels(std::vector<glm::vec4>& pixels) override;
-
+        virtual bool renderFrame() override;
+        virtual void getFrameData(std::vector<glm::vec4>& frameData) override;
+        
     private:
         RenderSession* m_session{nullptr};
 
@@ -25,6 +25,7 @@ namespace rtf {
         bool createGAS();
         bool createIAS();
         bool finalizeScene();
+        bool allocateOutputBuffer();
 
         bool prepareModules();
        
@@ -45,6 +46,7 @@ namespace rtf {
         hiprtScene m_scene = nullptr;
         hipDeviceptr_t m_outputBuffer = nullptr;
         glm::uvec2 m_resolution {0, 0};
+        bool m_pipeline_ready{false};
         
         std::vector<hipDeviceptr_t> m_hipGC;
                 template<typename T>

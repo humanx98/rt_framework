@@ -19,9 +19,25 @@
 #include "MeshType.h"
 
 namespace rtf {
+std::vector<glm::u8vec4> Convertu8vec4(const std::vector<glm::vec4>& data) {
+    std::vector<glm::u8vec4> result;
+    result.reserve(data.size());
+    for (const auto& p : data) {
+        glm::vec4 clamped = glm::clamp(p * 255.0f, 0.0f, 255.0f);
+        result.push_back(glm::u8vec4(
+            static_cast<uint8_t>(clamped.r),
+            static_cast<uint8_t>(clamped.g),
+            static_cast<uint8_t>(clamped.b),
+            static_cast<uint8_t>(clamped.a)
+        ));
+    }
+    return result;
+}
 
-bool SaveImage(const std::filesystem::path& path, int width, int height, int channels, const void* data) {
-    int success = stbi_write_png(path.string().c_str(), width, height, channels, data, width * channels);
+bool SaveImage(const std::filesystem::path& path, int width, int height, const std::vector<glm::vec4>& data) {
+    if (data.empty()) return false;
+    std::vector<glm::u8vec4> convertedData = Convertu8vec4(data);
+    int success = stbi_write_png(path.string().c_str(), width, height, 4, convertedData.data(), width * 4 * sizeof(uint8_t));
     return success != 0;
 }
 
@@ -37,20 +53,54 @@ bool LoadTriangle(rtf::Scene& scene) {
     return true;
 }
 
+bool LoadInstanceData(rtf::Scene& scene)
+{
+    constexpr float offset = 0.3f;
+
+    auto makeInstance = [&](std::vector<glm::mat4> matrices) {
+        const size_t keyCount = matrices.size();
+        std::vector<rtf::Transform> transforms;
+        transforms.reserve(keyCount);
+        for (size_t i = 0; i < keyCount; ++i) {
+            float t = keyCount > 1 ? static_cast<float>(i) / static_cast<float>(keyCount - 1) : 0.0f;
+            transforms.push_back({ .matrix = matrices[i], .time = t });
+        }
+        scene.instances.emplace_back(static_cast<glm::uint>(scene.meshes.size() - 1), std::move(transforms));
+    };
+
+    makeInstance({
+        glm::translate(glm::mat4(1.0f), { -0.25f, -offset, 0.0f }),
+        glm::translate(glm::mat4(1.0f), { 0.0f, -offset, 0.0f }),
+        glm::translate(glm::mat4(1.0f), { 0.25f, -offset, 0.0f }) *
+            glm::rotate(glm::mat4(1.0f), std::numbers::pi_v<float> * 0.5f, { 0.0f, 0.0f, 1.0f })
+    });
+
+    makeInstance({
+        glm::translate(glm::mat4(1.0f), { 0.0f, offset, 0.0f }),
+        glm::translate(glm::mat4(1.0f), { 0.0f, offset, 0.0f }) *
+            glm::rotate(glm::mat4(1.0f), std::numbers::pi_v<float> * 0.5f, { 0.0f, 0.0f, 1.0f })
+    });
+
+    return true;
+}
 
 bool LoadMesh(MeshType type, rtf::Scene& scene)
 {
     rtf::Camera camera;
     switch (type) {
     case MeshType::Triangle:
-        return LoadTriangle(scene);
+        LoadTriangle(scene);
+        LoadInstanceData(scene);
+        return true;
     default:
         std::println("Unsupported mesh type");
         return false;
     }
 }
 
-bool SetupCameraFromMesh(const rtf::Scene& scene, rtf::Camera& camera)
+
+
+bool SetupCameraFromMesh(const rtf::Scene& scene, rtf::Camera& camera, const float lookFromFactor)
 {
     // Compute min bounding box:
     glm::vec3 minBB( std::numeric_limits<float>::max() );
@@ -62,7 +112,7 @@ bool SetupCameraFromMesh(const rtf::Scene& scene, rtf::Camera& camera)
             maxBB = glm::max(maxBB, vertex);
         }
     }
-
+    
     glm::vec3 center = (minBB + maxBB) * 0.5f;
 
     // from is 2x the max extent away from center
@@ -73,7 +123,7 @@ bool SetupCameraFromMesh(const rtf::Scene& scene, rtf::Camera& camera)
     
     glm::vec3 lookFrom = center + glm::vec3(0.0f
         , 0.0f
-        , 2.0f * maxExtent);
+        , lookFromFactor * maxExtent);
     glm::vec3 lookAt = center;
     glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
     float fov = std::numbers::pi_v<float> / 4.0f;
