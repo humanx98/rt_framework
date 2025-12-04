@@ -25,6 +25,17 @@ static hiprtFrameMatrix glmToHiprt(const glm::mat4 &mat, float time) {
   return matrix;
 }
 
+static InstanceTransform glmToInstanceTransform(const glm::mat4 &mat,
+                                                float time) {
+  InstanceTransform transform{};
+  transform.rows[0] = {mat[0][0], mat[1][0], mat[2][0], mat[3][0]};
+  transform.rows[1] = {mat[0][1], mat[1][1], mat[2][1], mat[3][1]};
+  transform.rows[2] = {mat[0][2], mat[1][2], mat[2][2], mat[3][2]};
+  transform.rows[3] = {mat[0][3], mat[1][3], mat[2][3], mat[3][3]};
+  transform.time = time;
+  return transform;
+}
+
 HiprtRenderer::HiprtRenderer(RenderSession *session) : m_session(session) {}
 
 HiprtRenderer::~HiprtRenderer() {
@@ -67,17 +78,30 @@ bool HiprtRenderer::createGAS() {
     return false;
   }
 
+  m_meshInfosHost.clear();
+  m_meshInfosHost.reserve(meshes.size());
+
   for (const auto &mesh : meshes) {
     hiprtGeometryBuildInput buildInput = {.geomType =
                                               hiprtPrimitiveTypeTriangleMesh};
 
+    hipDeviceptr_t vertexBuffer = hipGCAlloc(mesh.vertices);
+    hipDeviceptr_t indexBuffer = hipGCAlloc(mesh.triangles);
+
     buildInput.primitive.triangleMesh = {
-        .vertices = hipGCAlloc(mesh.vertices),
+        .vertices = vertexBuffer,
         .vertexCount = (uint32_t)mesh.vertices.size(),
         .vertexStride = sizeof(mesh.vertices[0]),
-        .triangleIndices = hipGCAlloc(mesh.triangles),
+        .triangleIndices = indexBuffer,
         .triangleCount = (uint32_t)mesh.triangles.size(),
         .triangleStride = sizeof(mesh.triangles[0])};
+
+    MeshInfo meshInfo{};
+    meshInfo.vertices = reinterpret_cast<float3 *>(vertexBuffer);
+    meshInfo.vertexIds = reinterpret_cast<uint3 *>(indexBuffer);
+    meshInfo.vertexCount = (uint32_t)mesh.vertices.size();
+    meshInfo.triangleCount = (uint32_t)mesh.triangles.size();
+    m_meshInfosHost.push_back(meshInfo);
 
     size_t tempBuffSize;
     HIPRT_CHECK(hiprtGetGeometryBuildTemporaryBufferSize(
@@ -93,6 +117,11 @@ bool HiprtRenderer::createGAS() {
     m_geometries.push_back(geometry);
   }
 
+  if (!m_meshInfosHost.empty()) {
+    m_deviceMeshInfos =
+        reinterpret_cast<MeshInfo *>(hipGCAlloc(m_meshInfosHost));
+  }
+
   return true;
 }
 
@@ -104,12 +133,23 @@ bool HiprtRenderer::createIAS() {
     return false;
   }
 
+  size_t totalTransformCount = 0;
+  for (const auto &instance : scene.instances) {
+    totalTransformCount += instance.transforms.size();
+  }
+
   m_instances.clear();
   m_instances.reserve(scene.instances.size());
   m_transformHeaders.clear();
   m_transformHeaders.reserve(scene.instances.size());
   m_frameMatrices.clear();
   m_frameMatrices.reserve(scene.instances.size());
+  m_instanceTransformOffsets.clear();
+  m_instanceTransformOffsets.reserve(scene.instances.size());
+  m_instanceTransformCounts.clear();
+  m_instanceTransformCounts.reserve(scene.instances.size());
+  m_instanceTransformsHost.clear();
+  m_instanceTransformsHost.reserve(totalTransformCount);
 
   for (const auto &instance : scene.instances) {
     m_instances.push_back(
@@ -120,8 +160,15 @@ bool HiprtRenderer::createIAS() {
         {.frameIndex = (uint32_t)m_frameMatrices.size(),
          .frameCount = (uint32_t)instance.transforms.size()});
 
+    m_instanceTransformOffsets.push_back(
+        static_cast<uint32_t>(m_instanceTransformsHost.size()));
+    m_instanceTransformCounts.push_back(
+        static_cast<uint32_t>(instance.transforms.size()));
+
     for (const auto &transform : instance.transforms) {
       m_frameMatrices.push_back(glmToHiprt(transform.matrix, transform.time));
+      m_instanceTransformsHost.push_back(
+          glmToInstanceTransform(transform.matrix, transform.time));
     }
   }
   return true;
@@ -184,6 +231,51 @@ bool HiprtRenderer::prepareModules() {
   return true;
 }
 
+bool HiprtRenderer::prepareInstanceData() {
+  const Scene &scene = m_session->getScene();
+  if (scene.instances.empty()) {
+    std::println("No instances available for intersection data");
+    return false;
+  }
+
+  if (m_deviceMeshInfos == nullptr) {
+    std::println("Mesh info buffer is not initialized");
+    return false;
+  }
+
+  if (m_instanceTransformOffsets.size() != scene.instances.size() ||
+      m_instanceTransformCounts.size() != scene.instances.size()) {
+    std::println("Instance transform metadata is incomplete");
+    return false;
+  }
+
+  if (m_instanceTransformsHost.empty()) {
+    std::println("Instance transforms host buffer is empty");
+    return false;
+  }
+
+  m_deviceInstanceTransforms = reinterpret_cast<InstanceTransform *>(
+      hipGCAlloc(m_instanceTransformsHost));
+
+  m_instanceInfosHost.clear();
+  m_instanceInfosHost.reserve(scene.instances.size());
+
+  for (size_t instanceIndex = 0; instanceIndex < scene.instances.size();
+       ++instanceIndex) {
+    IntersectionInfo info{};
+    const uint32_t meshIndex = scene.instances[instanceIndex].triangleMeshIndex;
+    info.mesh = m_deviceMeshInfos + meshIndex;
+    const uint32_t offset = m_instanceTransformOffsets[instanceIndex];
+    info.transforms = m_deviceInstanceTransforms + offset;
+    info.transformCount = m_instanceTransformCounts[instanceIndex];
+    m_instanceInfosHost.push_back(info);
+  }
+
+  m_deviceIntersectionInfos = reinterpret_cast<IntersectionInfo *>(
+      hipGCAlloc(m_instanceInfosHost));
+  return true;
+}
+
 bool HiprtRenderer::allocateOutputBuffer() {
   const auto &resolution = m_session->getResolution();
   const size_t pixelCount =
@@ -207,11 +299,13 @@ void HiprtRenderer::getFrameData(std::vector<glm::vec4> &frameData) {
 bool HiprtRenderer::prepareRenderingPipeline() {
   auto gas_result = createGAS();
   auto ias_result = createIAS();
+  auto intersection_data_result = prepareInstanceData();
   auto finalize_result = finalizeScene();
   auto modules_result = prepareModules();
   auto output_buffer_result = allocateOutputBuffer();
-  m_pipeline_ready = gas_result && ias_result && finalize_result &&
-                     modules_result && output_buffer_result;
+  m_pipeline_ready = gas_result && ias_result && intersection_data_result &&
+                     finalize_result && modules_result &&
+                     output_buffer_result;
   return m_pipeline_ready;
 }
 
@@ -245,7 +339,7 @@ bool HiprtRenderer::renderFrame() {
   bool flipY = false;
   const auto resolution = m_session->getResolution();
   void *args[] = {&m_scene, (void *)&m_session->getCamera(), &m_outputBuffer,
-                  (void *)&resolution, &flipY};
+                  (void *)&resolution, &flipY, &m_deviceIntersectionInfos};
 
   uint3 block = {128, 1, 1};
   uint3 grid = {((resolution.x * resolution.y) + block.x - 1) / block.x, 1, 1};

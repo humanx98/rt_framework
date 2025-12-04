@@ -6,6 +6,7 @@
 #include <hiprt/hiprt.h>
 #include <vector>
 #include "HipMisc.h"
+#include "HiprtIntersectionInfo.h"
 
 namespace rtf {
     class HiprtRenderer : public Renderer {
@@ -28,6 +29,7 @@ namespace rtf {
         bool allocateOutputBuffer();
 
         bool prepareModules();
+        bool prepareInstanceData();
        
     
         std::vector<hiprtInstance> m_instances;
@@ -43,6 +45,14 @@ namespace rtf {
         std::unordered_map<std::string, hipFunction_t> m_functions;
 
         std::vector<hiprtGeometry> m_geometries;
+        std::vector<MeshInfo> m_meshInfosHost;
+        std::vector<InstanceTransform> m_instanceTransformsHost;
+        std::vector<uint32_t> m_instanceTransformOffsets;
+        std::vector<uint32_t> m_instanceTransformCounts;
+        std::vector<IntersectionInfo> m_instanceInfosHost;
+        MeshInfo* m_deviceMeshInfos{nullptr};
+        InstanceTransform* m_deviceInstanceTransforms{nullptr};
+        IntersectionInfo* m_deviceIntersectionInfos{nullptr};
         hiprtScene m_scene = nullptr;
         hipDeviceptr_t m_outputBuffer = nullptr;
         glm::uvec2 m_resolution {0, 0};
