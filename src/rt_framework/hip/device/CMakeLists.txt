@@ -13,6 +13,8 @@ set(HIP_DEVICE_MODULES
     RenderNormalsPrimitives.hip.cpp
 )
 
+message(STATUS "Compiling for ${HIP_ARCH}")
+
 set(hip_target_gpus)
 foreach(arch ${HIP_ARCH})
     list(APPEND hip_target_gpus "--offload-arch=${arch}")
@@ -42,6 +44,7 @@ set(hip_compiled_modules)
 file(GLOB hip_module_headers "*.hip.h")
 foreach(hip_module_source ${HIP_DEVICE_MODULES})
     get_filename_component(hip_module_name "${hip_module_source}" NAME_WE)
+    message(STATUS "Compiling HIP module: ${hip_module_name}")
     add_custom_command(
         DEPENDS ${hip_module_source} ${hip_module_headers}
         OUTPUT  ${hip_module_name}.hipfb

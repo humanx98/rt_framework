@@ -104,6 +104,7 @@ extern "C" __global__ void RenderMotionBlur(hiprtScene scene, Camera camera, flo
     for ( uint32_t i = 0; i < samples; ++i )
     {
         const float time = i / static_cast<float>(samples);
+        // jitter: time = (i + rand_f32(seed)) / samples
         hiprtSceneTraversalClosest tr(scene, ray, hiprtFullRayMask, hiprtTraversalHintDefault, nullptr, nullptr, 0, time);
         hiprtHit hit = tr.getNextHit();
         if (hit.hasHit()) {
