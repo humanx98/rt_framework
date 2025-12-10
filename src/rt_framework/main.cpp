@@ -30,6 +30,7 @@
 #include "AssetsLoader.h"
 #include "CommandLine.h"
 #include "RenderSession.h"
+#include "MeshType.h"
 
 int main(int argc, const char *argv[]) {
   const rtf::CliParseResult cli = rtf::ParseCommandLine(argc, argv);
@@ -45,11 +46,14 @@ int main(int argc, const char *argv[]) {
   rtf::Scene scene;
   rtf::Camera camera;
 
-  if (!LoadMesh(options.meshType, scene)) {
+  if (!LoadMesh(options.meshType, scene, camera)) {
     std::println("Failed to load requested mesh");
     return EXIT_FAILURE;
   }
-  SetupCameraFromMesh(scene, camera, 6.7f);
+  // if (options.meshType == rtf::MeshType::Triangle || options.meshType == rtf::MeshType::Box) {
+  //   // for the triangle mesh, setup a better camera
+  //   SetupCameraFromMesh(scene, camera, 6.7f);
+  // }
 
   // print camera parmeters:
   std::println("Camera:");
@@ -83,7 +87,11 @@ int main(int argc, const char *argv[]) {
   std::vector<glm::vec4> frameData;
   session->getFrameData(frameData);
 
-
+  // for(const auto& pixel : frameData) {
+  //   if (pixel.a > 0.0f) {
+  //     std::println("  pixel: ({}, {}, {}, {})", pixel.r, pixel.g, pixel.b, pixel.a);
+  //   }
+  // }
   rtf::SaveImage(sessionOptions.outputPath, sessionOptions.resolution.x, sessionOptions.resolution.y, frameData);
   return EXIT_SUCCESS;
 }

@@ -50,6 +50,18 @@ if (HIP_HIPCC_EXECUTABLE)
     list(APPEND TARGETS hip::host HIPRT::HIPRT)
     list(APPEND DEPENDENCIES hip_device_modules)
     list(APPEND DEFINITIONS USE_HIP)
+
+    add_custom_target(
+        copy_hiprt_dlls
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/submodules/HIPRT/dist/bin/$<CONFIG>/hiprt0300064$<$<CONFIG:Debug>:D>.dll
+            ${CMAKE_SOURCE_DIR}/submodules/HIPRT/dist/bin/$<CONFIG>/hiprt03000_6.4_amd.hipfb
+            ${CMAKE_SOURCE_DIR}/submodules/HIPRT/dist/bin/$<CONFIG>/hiprt03000_6.4_amd_lib_win.bc
+            $<TARGET_FILE_DIR:rt_framework>
+        COMMENT "Copying HIPRT DLLs from $<CONFIG> configuration"
+    )
+
+
 else()
     message(WARNING "Couldn't find hipcc. HIP is disabled")
     set(USE_HIP FALSE)
@@ -151,6 +163,7 @@ if (USE_HIP OR USE_CUDA )
     if (USE_HIP)
         target_compile_definitions(rt_framework PRIVATE USE_HIP)
         target_compile_definitions(rt_framework PRIVATE __AMD_PLATFORM_HIP__)
+        add_dependencies(rt_framework copy_hiprt_dlls)
     endif()
     if (USE_CUDA)
         target_compile_definitions(rt_framework PRIVATE USE_CUDA)

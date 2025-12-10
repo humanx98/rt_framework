@@ -123,7 +123,7 @@ OptixRenderer::~OptixRenderer() {
 
 bool OptixRenderer::initialize(int deviceIndex) {
   params = {};
-  params.samplesPerPixel = 32u;
+  params.samplesPerPixel = 4u;
   params.flipY = 0u;
 
   return createContext(deviceIndex);

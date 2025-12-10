@@ -124,7 +124,7 @@ extern "C" __global__ void __raygen__motion_blur() {
     // const float jitter = rand_float(seed);
     // const float time = (static_cast<float>(i) + jitter) /
     // static_cast<float>(samples);
-    const float time = i / static_cast<float>(samples);
+    const float time =  i / static_cast<float>(samples);
 
     color = add3(color, trace(ray, time));
   }

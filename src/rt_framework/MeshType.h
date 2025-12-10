@@ -2,6 +2,6 @@
 
 namespace rtf {
 
-enum class MeshType { Triangle, Lucy, Cornell, File };
+enum class MeshType { Triangle, Box, Lucy, Cornell, File };
 
 } // namespace rtf

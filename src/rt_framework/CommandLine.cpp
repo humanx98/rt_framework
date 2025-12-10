@@ -32,6 +32,9 @@ struct OptionInfo {
 
 constexpr MeshInfo kMeshTypes[] = {
     {"triangle", MeshType::Triangle, "Built-in triangle primitive"},
+    {"box", MeshType::Box, "Built-in box primitive"},
+    {"cornell", MeshType::Cornell, "Cornell box scene with a rotating light source"},
+    {"lucy", MeshType::Lucy, "Stanford Lucy model"},
     {"file", MeshType::File, "Placeholder for external mesh file"}
 };
 
